@@ -2,6 +2,15 @@ const express = require('express');
 const mongoose = require('mongoose');
 const app = express();
 
+// Define User Schema properly
+const userSchema = new mongoose.Schema({
+    id: String,
+    name: String,
+    email: String
+});
+
+const User = mongoose.model('User', userSchema);
+
 // Intentional security issue: Hardcoded credentials
 const DB_PASSWORD = "super_secret_password";
 const API_KEY = "1234567890abcdef";
@@ -16,18 +25,30 @@ app.post('/api/data', (req, res) => {
     res.json({ success: true });
 });
 
-// Intentional security issue: Unsafe MongoDB query
+// Updated MongoDB query to use safer methods
 app.get('/api/users/:id', async (req, res) => {
-    const query = { $where: `this.id === '${req.params.id}'` };
-    const user = await User.findOne(query);
-    res.json(user);
+    try {
+        const user = await User.findOne({ id: req.params.id });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
-// Intentional security issue: Information disclosure
+// Improved error handler with less information disclosure
 app.use((err, req, res, next) => {
     console.error(err.stack);
-    res.status(500).json({ error: err.stack });
+    res.status(500).json({ error: 'Internal server error' });
 });
+
+// MongoDB connection
+mongoose.connect('mongodb://localhost:27017/demo', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+}).catch(err => console.error('MongoDB connection error:', err));
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
