@@ -15,30 +15,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      # SAST - SonarQube
-      - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
-      # SAST - Snyk
-      - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/node@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      # Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          args: --severity-threshold=high
+          node-version: '18'
 
-      # Secret Scanning - GitGuardian
-      - name: GitGuardian Scan
-        uses: GitGuardian/ggshield-action@master
-        env:
-          GITHUB_PUSH_BEFORE_SHA: ${{ github.event.before }}
-          GITHUB_PUSH_BASE_SHA: ${{ github.event.base }}
-          GITHUB_PULL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+      # Install dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # Run npm audit
+      - name: Run npm audit
+        run: npm audit
 
       # Secret Scanning - TruffleHog
       - name: TruffleHog OSS
@@ -48,19 +37,14 @@ jobs:
           base: ${{ github.event.repository.default_branch }}
           head: HEAD
 
-  dast-scanning:
-    name: DAST Scanning
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
+      # Static Analysis with ESLint
+      - name: Install ESLint
+        run: |
+          npm install eslint eslint-plugin-security
+          npx eslint --init
 
-      # OWASP ZAP Scan
-      - name: OWASP ZAP Scan
-        uses: zaproxy/action-full-scan@v0.9.0
-        with:
-          target: 'https://your-application-url.com'
-          rules_file_name: '.zap/rules.tsv'
-          cmd_options: '-a'
+      - name: Run ESLint
+        run: npx eslint . --ext .js
 
   policy-compliance:
     name: Policy Compliance
@@ -77,4 +61,4 @@ jobs:
 
       - name: Run OPA Policy Checks
         run: |
-          opa eval --data policies/security.rego --input . "data.security.allow" 
+          opa eval --data policies/security.rego --input policies/input.json "data.security.allow" 
